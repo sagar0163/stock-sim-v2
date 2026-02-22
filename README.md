@@ -1,5 +1,11 @@
 # Stock Simulation Game
 
+<p align="center">
+  <img src="https://img.shields.io/badge/version-1.0.0-blue.svg" alt="Version">
+  <img src="https://img.shields.io/badge/node-18+-green.svg" alt="Node">
+  <img src="https://img.shields.io/badge/license-MIT-orange.svg" alt="License">
+</p>
+
 Virtual stock trading game with real-time market simulation.
 
 ## Features
