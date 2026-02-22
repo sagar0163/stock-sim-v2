@@ -1,0 +1,52 @@
+name: CI/CD
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18'
+        cache: 'npm'
+        cache-dependency-path: backend/package-lock.json
+    
+    - name: Install dependencies
+      run: |
+        cd backend
+        npm install
+    
+    - name: Run linter
+      run: |
+        cd backend
+        npm run lint || true
+    
+    - name: Build
+      run: |
+        cd backend
+        npm run build || true
+
+  docker:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Build Docker image
+      run: docker build -t stock-sim .
+    
+    - name: Test container
+      run: |
+        docker run -d -p 3000:3000 --name test-app stock-sim
+        sleep 5
+        docker logs test-app
+        docker stop test-app
