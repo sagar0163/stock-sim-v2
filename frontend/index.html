@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stock Sim - Virtual Trading Game</title>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/vue-router@4/dist/vue-router.global.js"></script>
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#0ea5e9',
+                        success: '#10b981',
+                        danger: '#ef4444',
+                        dark: '#0f172a',
+                        surface: '#1e293b',
+                        card: '#334155'
+                    },
+                    fontFamily: { sans: ['Inter', 'sans-serif'] }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { background: #0f172a; color: #f1f5f9; }
+        .glass { background: rgba(30, 41, 59, 0.8); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.1); }
+        .price-up { color: #10b981; }
+        .price-down { color: #ef4444; }
+        .card-hover { transition: all 0.2s; }
+        .card-hover:hover { transform: translateY(-2px); background: #3b4a63; }
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #1e293b; }
+        ::-webkit-scrollbar-thumb { background: #475569; border-radius: 3px; }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <!-- Login Screen -->
+        <div v-if="!isAuthenticated" class="min-h-screen flex items-center justify-center">
+            <div class="glass rounded-2xl p-8 w-full max-w-md">
+                <div class="text-center mb-8">
+                    <div class="w-16 h-16 bg-primary rounded-2xl flex items-center justify-center mx-auto mb-4">
+                        <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>
+                    </div>
+                    <h1 class="text-2xl font-bold">Stock Sim</h1>
+                    <p class="text-slate-400">Virtual Trading Game</p>
+                </div>
+                
+                <form @submit.prevent="handleLogin" class="space-y-4">
+                    <div v-if="isRegister" class="space-y-4">
+                        <input v-model="registerForm.username" type="text" placeholder="Username" class="w-full bg-dark border border-slate-600 rounded-xl px-4 py-3 focus:border-primary focus:outline-none">
+                        <input v-model="registerForm.email" type="email" placeholder="Email" class="w-full bg-dark border border-slate-600 rounded-xl px-4 py-3 focus:border-primary focus:outline-none">
+                        <input v-model="registerForm.password" type="password" placeholder="Password" class="w-full bg-dark border border-slate-600 rounded-xl px-4 py-3 focus:border-primary focus:outline-none">
+                    </div>
+                    <div v-else class="space-y-4">
+                        <input v-model="loginForm.email" type="email" placeholder="Email" class="w-full bg-dark border border-slate-600 rounded-xl px-4 py-3 focus:border-primary focus:outline-none">
+                        <input v-model="loginForm.password" type="password" placeholder="Password" class="w-full bg-dark border border-slate-600 rounded-xl px-4 py-3 focus:border-primary focus:outline-none">
+                    </div>
+                    
+                    <button type="submit" class="w-full bg-primary hover:bg-sky-500 text-white font-semibold py-3 rounded-xl transition">
+                        {{ isRegister ? 'Create Account' : 'Login' }}
+                    </button>
+                </form>
+                
+                <p class="text-center mt-4 text-slate-400">
+                    {{ isRegister ? 'Already have account?' : "Don't have account?" }}
+                    <button @click="isRegister = !isRegister" class="text-primary hover:underline ml-1">
+                        {{ isRegister ? 'Login' : 'Register' }}
+                    </button>
+                </p>
+            </div>
+        </div>
+        
+        <!-- Main App -->
+        <div v-else class="flex min-h-screen">
+            <!-- Sidebar -->
+            <aside class="w-64 bg-surface border-r border-slate-700 flex flex-col">
+                <div class="p-4 border-b border-slate-700">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 bg-primary rounded-xl flex items-center justify-center">
+                            <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>
+                        </div>
+                        <div><h1 class="font-bold">Stock Sim</h1><p class="text-xs text-slate-400">Virtual Trading</p></div>
+                    </div>
+                </div>
+                
+                <nav class="flex-1 p-4 space-y-2">
+                    <button @click="currentView = 'dashboard'" :class="currentView === 'dashboard' ? 'bg-primary/20 text-primary' : 'text-slate-400 hover:text-white'" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/></svg>
+                        Dashboard
+                    </button>
+                    <button @click="currentView = 'market'" :class="currentView === 'market' ? 'bg-primary/20 text-primary' : 'text-slate-400 hover:text-white'" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z"/></svg>
+                        Market
+                    </button>
+                    <button @click="currentView = 'portfolio'" :class="currentView === 'portfolio' ? 'bg-primary/20 text-primary' : 'text-slate-400 hover:text-white'" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+                        Portfolio
+                    </button>
+                    <button @click="currentView = 'leaderboard'" :class="currentView === 'leaderboard' ? 'bg-primary/20 text-primary' : 'text-slate-400 hover:text-white'" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+                        Leaderboard
+                    </button>
+                </nav>
+                
+                <div class="p-4 border-t border-slate-700">
+                    <div class="glass rounded-xl p-3 mb-3">
+                        <div class="text-xs text-slate-400">Balance</div>
+                        <div class="text-xl font-bold text-primary">${{ formatNumber(user.balance) }}</div>
+                    </div>
+                    <button @click="logout" class="w-full bg-slate-700 hover:bg-slate-600 py-2 rounded-xl text-sm">Logout</button>
+                </div>
+            </aside>
+            
+            <!-- Main Content -->
+            <main class="flex-1 overflow-auto">
+                <!-- Dashboard -->
+                <div v-if="currentView === 'dashboard'" class="p-8">
+                    <h2 class="text-2xl font-bold mb-6">Dashboard</h2>
+                    
+                    <div class="grid grid-cols-4 gap-4 mb-8">
+                        <div class="glass rounded-xl p-5">
+                            <div class="text-slate-400 text-sm">Portfolio Value</div>
+                            <div class="text-2xl font-bold">${{ formatNumber(portfolioData.totalValue) }}</div>
+                        </div>
+                        <div class="glass rounded-xl p-5">
+                            <div class="text-slate-400 text-sm">Cash Balance</div>
+                            <div class="text-2xl font-bold text-primary">${{ formatNumber(user.balance) }}</div>
+                        </div>
+                        <div class="glass rounded-xl p-5">
+                            <div class="text-slate-400 text-sm">Total P&L</div>
+                            <div :class="parseFloat(portfolioData.totalPnL) >= 0 ? 'price-up' : 'price-down'" class="text-2xl font-bold">
+                                {{ parseFloat(portfolioData.totalPnL) >= 0 ? '+' : '' }}${{ formatNumber(portfolioData.totalPnL) }}
+                            </div>
+                        </div>
+                        <div class="glass rounded-xl p-5">
+                            <div class="text-slate-400 text-sm">Holdings</div>
+                            <div class="text-2xl font-bold">{{ portfolioData.portfolio?.length || 0 }}</div>
+                        </div>
+                    </div>
+                    
+                    <h3 class="text-xl font-semibold mb-4">Your Holdings</h3>
+                    <div class="grid grid-cols-3 gap-4">
+                        <div v-for="item in portfolioData.portfolio" :key="item.symbol" class="glass rounded-xl p-4 card-hover">
+                            <div class="flex justify-between items-start mb-2">
+                                <div>
+                                    <div class="font-bold">{{ item.symbol }}</div>
+                                    <div class="text-xs text-slate-400">{{ item.name }}</div>
+                                </div>
+                                <span :class="parseFloat(item.pnlPercent) >= 0 ? 'price-up' : 'price-down'" class="text-sm">
+                                    {{ parseFloat(item.pnlPercent) >= 0 ? '+' : '' }}{{ item.pnlPercent }}%
+                                </span>
+                            </div>
+                            <div class="flex justify-between text-sm">
+                                <div><span class="text-slate-400">{{ item.quantity }}</span> shares</div>
+                                <div>${{ formatNumber(item.currentValue) }}</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div v-if="!portfolioData.portfolio?.length" class="text-center py-12 text-slate-400">
+                        No holdings yet. Start trading!
+                    </div>
+                </div>
+                
+                <!-- Market -->
+                <div v-if="currentView === 'market'" class="p-8">
+                    <h2 class="text-2xl font-bold mb-6">Market</h2>
+                    
+                    <div class="flex gap-4 mb-6">
+                        <input v-model="searchQuery" @input="searchStocks" type="text" placeholder="Search stocks..." class="bg-surface border border-slate-600 rounded-xl px-4 py-2 focus:border-primary focus:outline-none">
+                        <select v-model="sectorFilter" @change="loadStocks" class="bg-surface border border-slate-600 rounded-xl px-4 py-2 focus:border-primary focus:outline-none">
+                            <option value="">All Sectors</option>
+                            <option v-for="s in sectors" :key="s" :value="s">{{ s }}</option>
+                        </select>
+                    </div>
+                    
+                    <div class="grid grid-cols-4 gap-4">
+                        <div v-for="stock in stocks" :key="stock.symbol" @click="openTradeModal(stock)" class="glass rounded-xl p-4 card-hover cursor-pointer">
+                            <div class="flex justify-between items-start mb-2">
+                                <div>
+                                    <div class="font-bold">{{ stock.symbol }}</div>
+                                    <div class="text-xs text-slate-400">{{ stock.name }}</div>
+                                </div>
+                            </div>
+                            <div class="flex justify-between items-end">
+                                <div class="text-lg font-semibold">${{ stock.price.toFixed(2) }}</div>
+                                <div :class="stock.changePercent >= 0 ? 'price-up' : 'price-down'" class="text-sm">
+                                    {{ stock.changePercent >= 0 ? '+' : '' }}{{ stock.changePercent }}%
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Portfolio -->
+                <div v-if="currentView === 'portfolio'" class="p-8">
+                    <h2 class="text-2xl font-bold mb-6">Portfolio</h2>
+                    
+                    <div class="glass rounded-xl overflow-hidden">
+                        <table class="w-full">
+                            <thead class="bg-surface">
+                                <tr>
+                                    <th class="text-left p-4">Symbol</th>
+                                    <th class="text-right p-4">Shares</th>
+                                    <th class="text-right p-4">Avg Price</th>
+                                    <th class="text-right p-4">Current</th>
+                                    <th class="text-right p-4">Value</th>
+                                    <th class="text-right p-4">P&L</th>
+                                    <th class="text-right p-4">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr v-for="item in portfolioData.portfolio" :key="item.symbol" class="border-t border-slate-700">
+                                    <td class="p-4">
+                                        <div class="font-bold">{{ item.symbol }}</div>
+                                        <div class="text-xs text-slate-400">{{ item.name }}</div>
+                                    </td>
+                                    <td class="text-right p-4">{{ item.quantity }}</td>
+                                    <td class="text-right p-4">${{ item.avgPrice.toFixed(2) }}</td>
+                                    <td class="text-right p-4">${{ item.currentPrice.toFixed(2) }}</td>
+                                    <td class="text-right p-4 font-semibold">${{ formatNumber(item.currentValue) }}</td>
+                                    <td :class="parseFloat(item.pnl) >= 0 ? 'price-up' : 'price-down'" class="text-right p-4">
+                                        {{ parseFloat(item.pnl) >= 0 ? '+' : '' }}${{ item.pnl }}
+                                    </td>
+                                    <td class="text-right p-4">
+                                        <button @click="openTradeModal(item)" class="bg-primary px-3 py-1 rounded text-sm">Trade</button>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <div v-if="!portfolioData.portfolio?.length" class="text-center py-12 text-slate-400">
+                        No holdings yet. Start trading!
+                    </div>
+                </div>
+                
+                <!-- Leaderboard -->
+                <div v-if="currentView === 'leaderboard'" class="p-8">
+                    <h2 class="text-2xl font-bold mb-6">Leaderboard</h2>
+                    
+                    <div class="glass rounded-xl overflow-hidden">
+                        <table class="w-full">
+                            <thead class="bg-surface">
+                                <tr>
+                                    <th class="text-left p-4">Rank</th>
+                                    <th class="text-left p-4">Trader</th>
+                                    <th class="text-right p-4">Portfolio Value</th>
+                                    <th class="text-right p-4">P&L</th>
+                                    <th class="text-right p-4">Holdings</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr v-for="entry in leaderboard" :key="entry.rank" class="border-t border-slate-700">
+                                    <td class="p-4">
+                                        <span v-if="entry.rank === 1" class="text-yellow-400">🥇</span>
+                                        <span v-else-if="entry.rank === 2" class="text-gray-400">🥈</span>
+                                        <span v-else-if="entry.rank === 3" class="text-amber-600">🥉</span>
+                                        <span v-else class="text-slate-400">#{{ entry.rank }}</span>
+                                    </td>
+                                    <td class="p-4 font-semibold">{{ entry.username }}</td>
+                                    <td class="text-right p-4 font-bold text-primary">${{ formatNumber(entry.portfolioValue) }}</td>
+                                    <td :class="parseFloat(entry.pnl) >= 0 ? 'price-up' : 'price-down'" class="text-right p-4">
+                                        {{ parseFloat(entry.pnl) >= 0 ? '+' : '' }}${{ entry.pnl }}
+                                    </td>
+                                    <td class="text-right p-4">{{ entry.holdings }}</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </main>
+        </div>
+        
+        <!-- Trade Modal -->
+        <div v-if="showTradeModal" class="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
+            <div class="glass rounded-2xl p-8 w-full max-w-md">
+                <div class="flex justify-between items-center mb-6">
+                    <h3 class="text-xl font-bold">Trade {{ selectedStock.symbol }}</h3>
+                    <button @click="showTradeModal = false" class="text-slate-400 hover:text-white">✕</button>
+                </div>
+                
+                <div class="mb-4 p-4 bg-surface rounded-xl">
+                    <div class="text-slate-400 text-sm">Current Price</div>
+                    <div class="text-2xl font-bold">${{ selectedStock.price?.toFixed(2) }}</div>
+                </div>
+                
+                <div class="mb-4">
+                    <label class="block text-slate-400 text-sm mb-2">Quantity</label>
+                    <input v-model.number="tradeQuantity" type="number" min="1" class="w-full bg-dark border border-slate-600 rounded-xl px-4 py-3 focus:border-primary focus:outline-none">
+                </div>
+                
+                <div class="mb-6 p-4 bg-surface rounded-xl">
+                    <div class="flex justify-between text-sm">
+                        <span class="text-slate-400">Total</span>
+                        <span class="font-bold">${{ formatNumber(tradeQuantity * (selectedStock.price || selectedStock.currentPrice || 0)) }}</span>
+                    </div>
+                </div>
+                
+                <div class="flex gap-4">
+                    <button @click="buyStock" class="flex-1 bg-success hover:bg-emerald-600 py-3 rounded-xl font-semibold">Buy</button>
+                    <button @click="sellStock" class="flex-1 bg-danger hover:bg-red-600 py-3 rounded-xl font-semibold">Sell</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const { createApp, ref, computed, onMounted } = Vue;
+        
+        createApp({
+            setup() {
+                const API = 'http://localhost:3000/api';
+                
+                const isAuthenticated = ref(false);
+                const isRegister = ref(false);
+                const token = ref(localStorage.getItem('token'));
+                const currentView = ref('dashboard');
+                
+                const loginForm = ref({ email: '', password: '' });
+                const registerForm = ref({ username: '', email: '', password: '' });
+                
+                const user = ref({ balance: 0, portfolio: [] });
+                const stocks = ref([]);
+                const sectors = ref([]);
+                const leaderboard = ref([]);
+                const portfolioData = ref({ portfolio: [] });
+                
+                const searchQuery = ref('');
+                const sectorFilter = ref('');
+                
+                const showTradeModal = ref(false);
+                const selectedStock = ref({});
+                const tradeQuantity = ref(1);
+                
+                const formatNumber = (num) => {
+                    if (!num) return '0.00';
+                    return parseFloat(num).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                };
+                
+                const handleLogin = async () => {
+                    try {
+                        const endpoint = isRegister.value ? '/auth/register' : '/auth/login';
+                        const body = isRegister.value ? registerForm.value : loginForm.value;
+                        
+                        const res = await fetch(API + endpoint, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(body)
+                        });
+                        
+                        const data = await res.json();
+                        if (!res.ok) throw new Error(data.message);
+                        
+                        token.value = data.token;
+                        localStorage.setItem('token', data.token);
+                        user.value = data.user;
+                        isAuthenticated.value = true;
+                        
+                        loadPortfolio();
+                        loadLeaderboard();
+                    } catch (e) {
+                        alert(e.message);
+                    }
+                };
+                
+                const logout = () => {
+                    token.value = null;
+                    localStorage.removeItem('token');
+                    isAuthenticated.value = false;
+                };
+                
+                const loadStocks = async () => {
+                    let url = API + '/stocks?limit=20';
+                    if (sectorFilter.value) url += '&sector=' + sectorFilter.value;
+                    const res = await fetch(url);
+                    const data = await res.json();
+                    stocks.value = data.stocks;
+                };
+                
+                const loadSectors = async () => {
+                    const res = await fetch(API + '/stocks/meta/sectors');
+                    sectors.value = await res.json();
+                };
+                
+                const loadPortfolio = async () => {
+                    const res = await fetch(API + '/portfolio', { headers: { Authorization: `Bearer ${token.value}` } });
+                    portfolioData.value = await res.json();
+                };
+                
+                const loadLeaderboard = async () => {
+                    const res = await fetch(API + '/leaderboard');
+                    const data = await res.json();
+                    leaderboard.value = data.leaderboard;
+                };
+                
+                const searchStocks = async () => {
+                    if (searchQuery.value.length < 2) {
+                        loadStocks();
+                        return;
+                    }
+                    const res = await fetch(API + '/stocks/search/' + searchQuery.value);
+                    stocks.value = await res.json();
+                };
+                
+                const openTradeModal = (stock) => {
+                    selectedStock.value = stock;
+                    tradeQuantity.value = 1;
+                    showTradeModal.value = true;
+                };
+                
+                const buyStock = async () => {
+                    try {
+                        const res = await fetch(API + '/portfolio/buy', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token.value}` },
+                            body: JSON.stringify({ symbol: selectedStock.value.symbol, quantity: tradeQuantity.value })
+                        });
+                        const data = await res.json();
+                        if (!res.ok) throw new Error(data.message);
+                        showTradeModal.value = false;
+                        loadPortfolio();
+                        user.value.balance = data.balance;
+                        alert('Purchase successful!');
+                    } catch (e) {
+                        alert(e.message);
+                    }
+                };
+                
+                const sellStock = async () => {
+                    try {
+                        const res = await fetch(API + '/portfolio/sell', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token.value}` },
+                            body: JSON.stringify({ symbol: selectedStock.value.symbol, quantity: tradeQuantity.value })
+                        });
+                        const data = await res.json();
+                        if (!res.ok) throw new Error(data.message);
+                        showTradeModal.value = false;
+                        loadPortfolio();
+                        user.value.balance = data.balance;
+                        alert('Sale successful!');
+                    } catch (e) {
+                        alert(e.message);
+                    }
+                };
+                
+                // Socket.IO for real-time updates
+                onMounted(async () => {
+                    if (token.value) {
+                        isAuthenticated.value = true;
+                        loadPortfolio();
+                        loadLeaderboard();
+                    }
+                    loadStocks();
+                    loadSectors();
+                    
+                    // Real-time price updates
+                    try {
+                        const socket = io('http://localhost:3000');
+                        socket.on('market-update', (updatedStocks) => {
+                            stocks.value = updatedStocks;
+                        });
+                    } catch(e) {
+                        console.log('Socket not connected');
+                    }
+                });
+                
+                return {
+                    isAuthenticated, isRegister, token, currentView,
+                    loginForm, registerForm, user,
+                    stocks, sectors, leaderboard, portfolioData,
+                    searchQuery, sectorFilter,
+                    showTradeModal, selectedStock, tradeQuantity,
+                    formatNumber, handleLogin, logout,
+                    loadStocks, searchStocks, openTradeModal, buyStock, sellStock
+                };
+            }
+        }).mount('#app');
+    </script>
+</body>
+</html>
