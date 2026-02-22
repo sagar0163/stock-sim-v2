@@ -1,0 +1,12 @@
+node_modules/
+.env
+*.log
+.DS_Store
+data/
+.git/
+.gitignore
+*.md
+!README.md
+!API.md
+!CHANGELOG.md
+!SPEC.md
