@@ -1,4 +1,10 @@
 require('dotenv').config();
+
+if (!process.env.JWT_SECRET) {
+  console.error("FATAL ERROR: process.env.JWT_SECRET is not defined.");
+  process.exit(1);
+}
+
 const express = require('express');
 const http = require('http');
 const cors = require('cors');

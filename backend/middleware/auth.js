@@ -1,7 +1,5 @@
 const jwt = require('jsonwebtoken');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'stockgame_secret_key_2024';
-
 const auth = async (req, res, next) => {
   try {
     const token = req.header('Authorization')?.replace('Bearer ', '');
@@ -10,7 +8,7 @@ const auth = async (req, res, next) => {
       return res.status(401).json({ message: 'No token, authorization denied' });
     }
     
-    const decoded = jwt.verify(token, JWT_SECRET);
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
     req.user = decoded;
     next();
   } catch (error) {
@@ -19,7 +17,7 @@ const auth = async (req, res, next) => {
 };
 
 const generateToken = (userId) => {
-  return jwt.sign({ id: userId }, JWT_SECRET, { expiresIn: '7d' });
+  return jwt.sign({ id: userId }, process.env.JWT_SECRET, { expiresIn: '7d' });
 };
 
-module.exports = { auth, generateToken, JWT_SECRET };
+module.exports = { auth, generateToken };
