@@ -1,6 +1,6 @@
 # WAR_ROOM_PLAN_2
 
-- [ ] Create `Leaderboard` mongoose model to cache rankings.
+- [x] Create `Leaderboard` mongoose model to cache rankings.
 - [ ] Implement a function (or aggregation pipeline) to compute and update leaderboard ranks.
 - [ ] Schedule the leaderboard update function (e.g., using `setInterval`).
 - [ ] Refactor `/api/leaderboard` to fetch from the `Leaderboard` collection.
