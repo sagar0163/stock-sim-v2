@@ -39,6 +39,10 @@ marketSimulator.initialize().then(() => {
   marketSimulator.start(5000); // Update every 5 seconds
 });
 
+// Initialize leaderboard updates
+const { startLeaderboardCron } = require('./services/leaderboardService');
+startLeaderboardCron();
+
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/stocks', stockRoutes);
