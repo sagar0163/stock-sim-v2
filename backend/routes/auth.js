@@ -8,6 +8,10 @@ router.post('/register', async (req, res) => {
   try {
     const { username, email, password } = req.body;
     
+    if (typeof username !== 'string' || typeof email !== 'string' || typeof password !== 'string' || !username.trim() || !email.trim() || !password) {
+      return res.status(400).json({ message: 'Invalid input types or empty fields' });
+    }
+    
     // Check if user exists
     const existingUser = await User.findOne({ $or: [{ email }, { username }] });
     if (existingUser) {
@@ -39,6 +43,10 @@ router.post('/register', async (req, res) => {
 router.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body;
+    
+    if (typeof email !== 'string' || typeof password !== 'string' || !email.trim() || !password) {
+      return res.status(400).json({ message: 'Invalid input types or empty fields' });
+    }
     
     const user = await User.findOne({ email });
     if (!user) {

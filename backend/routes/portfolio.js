@@ -56,8 +56,12 @@ router.post('/buy', auth, async (req, res) => {
   try {
     const { symbol, quantity } = req.body;
     
-    if (!symbol || !quantity || quantity < 1) {
-      return res.status(400).json({ message: 'Invalid request' });
+    if (typeof symbol !== 'string' || !symbol.trim()) {
+      return res.status(400).json({ message: 'Invalid symbol' });
+    }
+    
+    if (typeof quantity !== 'number' || isNaN(quantity) || quantity < 1) {
+      return res.status(400).json({ message: 'Invalid quantity' });
     }
     
     const stock = await Stock.findOne({ symbol: symbol.toUpperCase() });
@@ -145,8 +149,12 @@ router.post('/sell', auth, async (req, res) => {
   try {
     const { symbol, quantity } = req.body;
     
-    if (!symbol || !quantity || quantity < 1) {
-      return res.status(400).json({ message: 'Invalid request' });
+    if (typeof symbol !== 'string' || !symbol.trim()) {
+      return res.status(400).json({ message: 'Invalid symbol' });
+    }
+    
+    if (typeof quantity !== 'number' || isNaN(quantity) || quantity < 1) {
+      return res.status(400).json({ message: 'Invalid quantity' });
     }
     
     const stock = await Stock.findOne({ symbol: symbol.toUpperCase() });
