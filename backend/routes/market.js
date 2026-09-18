@@ -19,6 +19,25 @@ router.post('/events', auth, async (req, res) => {
   try {
     const { title, description, type, sectors, impact, duration } = req.body;
     
+    if (typeof title !== 'string' || !title.trim()) {
+      return res.status(400).json({ message: 'Invalid title' });
+    }
+    if (typeof description !== 'string') {
+      return res.status(400).json({ message: 'Invalid description' });
+    }
+    if (typeof type !== 'string') {
+      return res.status(400).json({ message: 'Invalid type' });
+    }
+    if (impact !== undefined && (typeof impact !== 'number' || isNaN(impact))) {
+      return res.status(400).json({ message: 'Invalid impact' });
+    }
+    if (duration !== undefined && (typeof duration !== 'number' || isNaN(duration))) {
+      return res.status(400).json({ message: 'Invalid duration' });
+    }
+    if (sectors !== undefined && !Array.isArray(sectors)) {
+      return res.status(400).json({ message: 'Invalid sectors' });
+    }
+    
     const event = new MarketEvent({
       title,
       description,
