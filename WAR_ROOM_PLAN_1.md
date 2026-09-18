@@ -1,0 +1,5 @@
+- [ ] Add axios for API requests
+- [ ] Create API service for fetching prices from Finnhub/AlphaVantage with caching
+- [ ] Update seed.js to support more stocks (e.g., S&P 500 subset or dynamic fetching)
+- [ ] Update marketSimulator to fetch real prices instead of random changes
+- [ ] Add cache fallback mechanism to handle rate limits
