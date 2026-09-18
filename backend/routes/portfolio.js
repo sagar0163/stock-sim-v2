@@ -67,58 +67,74 @@ router.post('/buy', auth, async (req, res) => {
     
     const totalCost = stock.price * quantity;
     
-    const user = await User.findById(req.user.id);
-    
-    if (user.balance < totalCost) {
-      return res.status(400).json({ message: 'Insufficient funds' });
+    let maxRetries = 3;
+    while (maxRetries > 0) {
+      try {
+        const user = await User.findById(req.user.id);
+        
+        if (user.balance < totalCost) {
+          return res.status(400).json({ message: 'Insufficient funds' });
+        }
+        
+        // Deduct balance
+        user.balance -= totalCost;
+        
+        // Update portfolio
+        const existingItem = user.portfolio.find(p => p.symbol === stock.symbol);
+        if (existingItem) {
+          // Update average price
+          const totalShares = existingItem.quantity + quantity;
+          const totalValue = (existingItem.avgPrice * existingItem.quantity) + (stock.price * quantity);
+          existingItem.avgPrice = totalValue / totalShares;
+          existingItem.quantity = totalShares;
+        } else {
+          user.portfolio.push({
+            symbol: stock.symbol,
+            name: stock.name,
+            quantity: quantity,
+            avgPrice: stock.price
+          });
+        }
+        
+        // Record transaction
+        const transaction = new Transaction({
+          userId: user._id,
+          symbol: stock.symbol,
+          name: stock.name,
+          type: 'buy',
+          quantity: quantity,
+          price: stock.price,
+          total: totalCost,
+          balanceAfter: user.balance
+        });
+        
+        // Save user first to trigger OCC if needed
+        await user.save();
+        await transaction.save();
+        
+        return res.json({
+          message: 'Purchase successful',
+          transaction: {
+            symbol: stock.symbol,
+            name: stock.name,
+            quantity,
+            price: stock.price,
+            total: totalCost
+          },
+          balance: user.balance
+        });
+      } catch (err) {
+        if (err.name === 'VersionError') {
+          maxRetries--;
+          if (maxRetries === 0) {
+            return res.status(409).json({ message: 'System busy, please try again' });
+          }
+          // Continue loop
+        } else {
+          throw err;
+        }
+      }
     }
-    
-    // Deduct balance
-    user.balance -= totalCost;
-    
-    // Update portfolio
-    const existingItem = user.portfolio.find(p => p.symbol === stock.symbol);
-    if (existingItem) {
-      // Update average price
-      const totalShares = existingItem.quantity + quantity;
-      const totalValue = (existingItem.avgPrice * existingItem.quantity) + (stock.price * quantity);
-      existingItem.avgPrice = totalValue / totalShares;
-      existingItem.quantity = totalShares;
-    } else {
-      user.portfolio.push({
-        symbol: stock.symbol,
-        name: stock.name,
-        quantity: quantity,
-        avgPrice: stock.price
-      });
-    }
-    
-    // Record transaction
-    const transaction = new Transaction({
-      userId: user._id,
-      symbol: stock.symbol,
-      name: stock.name,
-      type: 'buy',
-      quantity: quantity,
-      price: stock.price,
-      total: totalCost,
-      balanceAfter: user.balance
-    });
-    await transaction.save();
-    
-    await user.save();
-    
-    res.json({
-      message: 'Purchase successful',
-      transaction: {
-        symbol: stock.symbol,
-        name: stock.name,
-        quantity,
-        price: stock.price,
-        total: totalCost
-      },
-      balance: user.balance
-    });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -138,50 +154,65 @@ router.post('/sell', auth, async (req, res) => {
       return res.status(404).json({ message: 'Stock not found' });
     }
     
-    const user = await User.findById(req.user.id);
-    const portfolioItem = user.portfolio.find(p => p.symbol === stock.symbol);
-    
-    if (!portfolioItem || portfolioItem.quantity < quantity) {
-      return res.status(400).json({ message: 'Insufficient shares' });
+    let maxRetries = 3;
+    while (maxRetries > 0) {
+      try {
+        const user = await User.findById(req.user.id);
+        const portfolioItem = user.portfolio.find(p => p.symbol === stock.symbol);
+        
+        if (!portfolioItem || portfolioItem.quantity < quantity) {
+          return res.status(400).json({ message: 'Insufficient shares' });
+        }
+        
+        const totalValue = stock.price * quantity;
+        
+        // Add to balance
+        user.balance += totalValue;
+        
+        // Update portfolio
+        portfolioItem.quantity -= quantity;
+        if (portfolioItem.quantity === 0) {
+          user.portfolio = user.portfolio.filter(p => p.symbol !== stock.symbol);
+        }
+        
+        // Record transaction
+        const transaction = new Transaction({
+          userId: user._id,
+          symbol: stock.symbol,
+          name: stock.name,
+          type: 'sell',
+          quantity: quantity,
+          price: stock.price,
+          total: totalValue,
+          balanceAfter: user.balance
+        });
+        
+        await user.save();
+        await transaction.save();
+        
+        return res.json({
+          message: 'Sale successful',
+          transaction: {
+            symbol: stock.symbol,
+            name: stock.name,
+            quantity,
+            price: stock.price,
+            total: totalValue
+          },
+          balance: user.balance
+        });
+      } catch (err) {
+        if (err.name === 'VersionError') {
+          maxRetries--;
+          if (maxRetries === 0) {
+            return res.status(409).json({ message: 'System busy, please try again' });
+          }
+          // Continue loop
+        } else {
+          throw err;
+        }
+      }
     }
-    
-    const totalValue = stock.price * quantity;
-    
-    // Add to balance
-    user.balance += totalValue;
-    
-    // Update portfolio
-    portfolioItem.quantity -= quantity;
-    if (portfolioItem.quantity === 0) {
-      user.portfolio = user.portfolio.filter(p => p.symbol !== stock.symbol);
-    }
-    
-    // Record transaction
-    const transaction = new Transaction({
-      userId: user._id,
-      symbol: stock.symbol,
-      name: stock.name,
-      type: 'sell',
-      quantity: quantity,
-      price: stock.price,
-      total: totalValue,
-      balanceAfter: user.balance
-    });
-    await transaction.save();
-    
-    await user.save();
-    
-    res.json({
-      message: 'Sale successful',
-      transaction: {
-        symbol: stock.symbol,
-        name: stock.name,
-        quantity,
-        price: stock.price,
-        total: totalValue
-      },
-      balance: user.balance
-    });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
