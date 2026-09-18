@@ -1,7 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const User = require('../models/User');
-const Stock = require('../models/Stock');
+const Leaderboard = require('../models/Leaderboard');
 const { auth } = require('../middleware/auth');
 
 // Get leaderboard
@@ -9,48 +8,24 @@ router.get('/', async (req, res) => {
   try {
     const { period = 'all' } = req.query;
     
-    const users = await User.find({}, 'username balance portfolio createdAt');
-    
-    // Get current stock prices
-    const stocks = await Stock.find({}, 'symbol price');
-    const prices = {};
-    stocks.forEach(s => {
-      prices[s.symbol] = s.price;
-    });
-    
-    // Calculate portfolio values
-    const leaderboard = users.map(user => {
-      const portfolioValue = user.portfolio.reduce((sum, item) => {
-        const currentPrice = prices[item.symbol] || item.avgPrice;
-        return sum + (currentPrice * item.quantity);
-      }, 0);
+    // Fetch top 100 from Leaderboard collection
+    const leaderboard = await Leaderboard.find({})
+      .sort({ rank: 1 })
+      .limit(100)
+      .lean();
       
-      const totalValue = portfolioValue + user.balance;
-      const invested = user.portfolio.reduce((sum, item) => sum + (item.avgPrice * item.quantity), 0);
-      const pnl = totalValue - 100000;
-      const pnlPercent = ((pnl / 100000) * 100);
-      
-      return {
-        username: user.username,
-        balance: user.balance,
-        portfolioValue: totalValue.toFixed(2),
-        invested: invested.toFixed(2),
-        pnl: pnl.toFixed(2),
-        pnlPercent: pnlPercent.toFixed(2),
-        holdings: user.portfolio.length,
-        memberSince: user.createdAt
-      };
-    });
+    // The previous implementation formatted strings with .toFixed(2) in response
+    // We can do that or leave as numbers. Let's make sure it matches original format if needed.
+    // original: portfolioValue: totalValue.toFixed(2), etc.
+    const formattedLeaderboard = leaderboard.map(entry => ({
+      ...entry,
+      portfolioValue: entry.portfolioValue.toFixed(2),
+      invested: entry.invested.toFixed(2),
+      pnl: entry.pnl.toFixed(2),
+      pnlPercent: entry.pnlPercent.toFixed(2)
+    }));
     
-    // Sort by portfolio value
-    leaderboard.sort((a, b) => parseFloat(b.portfolioValue) - parseFloat(a.portfolioValue));
-    
-    // Add rank
-    leaderboard.forEach((entry, index) => {
-      entry.rank = index + 1;
-    });
-    
-    res.json({ leaderboard: leaderboard.slice(0, 100) });
+    res.json({ leaderboard: formattedLeaderboard });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -59,40 +34,23 @@ router.get('/', async (req, res) => {
 // Get user's rank
 router.get('/my-rank', auth, async (req, res) => {
   try {
-    const user = await User.findById(req.user.id);
+    const userRankInfo = await Leaderboard.findOne({ _id: req.user.id }).lean();
     
-    const stocks = await Stock.find({}, 'symbol price');
-    const prices = {};
-    stocks.forEach(s => {
-      prices[s.symbol] = s.price;
-    });
-    
-    const portfolioValue = user.portfolio.reduce((sum, item) => {
-      const currentPrice = prices[item.symbol] || item.avgPrice;
-      return sum + (currentPrice * item.quantity);
-    }, 0);
-    
-    const totalValue = portfolioValue + user.balance;
-    
-    // Get rank
-    const users = await User.find({}, 'balance portfolio');
-    let rank = 1;
-    
-    for (const u of users) {
-      const uPortfolioValue = u.portfolio.reduce((sum, item) => {
-        const currentPrice = prices[item.symbol] || item.avgPrice;
-        return sum + (currentPrice * item.quantity);
-      }, 0);
-      const uTotal = uPortfolioValue + u.balance;
-      
-      if (uTotal > totalValue) rank++;
+    if (!userRankInfo) {
+      // User might be new and leaderboard hasn't updated yet.
+      return res.json({
+        rank: null,
+        portfolioValue: "100000.00",
+        balance: 100000,
+        totalTrades: 0
+      });
     }
     
     res.json({
-      rank,
-      portfolioValue: totalValue.toFixed(2),
-      balance: user.balance,
-      totalTrades: user.portfolio.length
+      rank: userRankInfo.rank,
+      portfolioValue: userRankInfo.portfolioValue.toFixed(2),
+      balance: userRankInfo.balance,
+      totalTrades: userRankInfo.holdings // In original code it returns user.portfolio.length
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
