@@ -1,0 +1,3 @@
+- [ ] Throw an error on startup if `process.env.JWT_SECRET` is undefined
+- [ ] Remove hardcoded JWT secret fallback in `backend/middleware/auth.js`
+- [ ] Add strict validation for `quantity` and other inputs in API endpoints
